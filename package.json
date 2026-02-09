@@ -1,0 +1,90 @@
+{
+  "name": "md2cf",
+  "version": "1.0.0",
+  "description": "A CLI tool to sync Markdown files to Confluence pages",
+  "type": "module",
+  "bin": {
+    "md2cf": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "skills",
+    "llm.txt",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"*.config.*\" \"*.json\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "confluence",
+    "markdown",
+    "sync",
+    "atlassian",
+    "adf",
+    "cli",
+    "wiki",
+    "md2cf",
+    "markdown-to-confluence",
+    "atlassian-document-format"
+  ],
+  "author": "Sujeet Jaiswal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sujeet-pro/markdown-to-confluence-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sujeet-pro/markdown-to-confluence-sync/issues"
+  },
+  "homepage": "https://sujeet-pro.github.io/markdown-to-confluence-sync",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.3.2",
+    "@mermaid-js/mermaid-cli": "^11.12.0",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "marklassian": "^1.1.0",
+    "ora": "^8.2.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.4",
+    "@vitest/coverage-v8": "^3.0.5",
+    "eslint": "^9.20.1",
+    "eslint-config-prettier": "^10.0.1",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.1",
+    "vite": "^6.1.0",
+    "vitepress": "^1.6.4",
+    "vitest": "^3.0.5"
+  }
+}
