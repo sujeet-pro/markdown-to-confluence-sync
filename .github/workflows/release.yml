@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +29,10 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      # Trusted publishing requires npm >= 11.5.1 (Node 22 ships with npm 10)
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - run: npm ci
 
       # Run full CI checks
@@ -36,7 +41,7 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # Configure git
+      # Configure git for version bump commit
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -57,11 +62,9 @@ jobs:
           git tag "v${{ steps.bump.outputs.version }}"
           git push origin main --tags
 
-      # Publish to npm
+      # Publish to npm (authenticated via OIDC trusted publisher — no token needed)
       - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
 
       # Create GitHub Release
       - name: Create GitHub Release
