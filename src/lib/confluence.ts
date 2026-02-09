@@ -1,6 +1,7 @@
 import { buildApiBaseUrl } from "./url-parser.js";
 import type {
   ConfluencePage,
+  ConfluenceFolder,
   ConfluenceSpace,
   ConfluenceSpacesResponse,
   ConfluencePagesResponse,
@@ -76,6 +77,11 @@ export class ConfluenceClient {
   /** Fetches a page by its numeric ID, including ADF body. */
   async getPage(pageId: string): Promise<ConfluencePage> {
     return this.request<ConfluencePage>(`/pages/${pageId}?body-format=atlas_doc_format`);
+  }
+
+  /** Fetches a folder by its numeric ID. */
+  async getFolder(folderId: string): Promise<ConfluenceFolder> {
+    return this.request<ConfluenceFolder>(`/folders/${folderId}`);
   }
 
   /** Fetches a space by its key (e.g. "ENG"). Throws if not found. */

@@ -50,6 +50,7 @@ export {
 export type {
   Md2cfConfig,
   ConfluencePage,
+  ConfluenceFolder,
   ConfluenceSpace,
   ParsedConfluenceUrl,
   SyncOptions,

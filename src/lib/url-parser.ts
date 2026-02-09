@@ -6,6 +6,7 @@ import type { ParsedConfluenceUrl } from "./types.js";
  * Supported URL formats:
  *   https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345/Page+Title
  *   https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345
+ *   https://domain.atlassian.net/wiki/spaces/SPACE/folder/12345
  *   https://domain.atlassian.net/wiki/spaces/SPACE
  */
 export function parseConfluenceUrl(url: string): ParsedConfluenceUrl {
@@ -18,6 +19,17 @@ export function parseConfluenceUrl(url: string): ParsedConfluenceUrl {
 
   const baseUrl = `${parsed.protocol}//${parsed.host}`;
   const pathname = parsed.pathname;
+
+  // Match /wiki/spaces/SPACEKEY/folder/FOLDERID
+  const folderMatch = pathname.match(/\/wiki\/spaces\/([^/]+)\/folder\/(\d+)/);
+  if (folderMatch) {
+    return {
+      baseUrl,
+      spaceKey: folderMatch[1],
+      pageId: folderMatch[2],
+      isFolder: true,
+    };
+  }
 
   // Match /wiki/spaces/SPACEKEY/pages/PAGEID(/optional-title)
   const pageMatch = pathname.match(/\/wiki\/spaces\/([^/]+)\/pages\/(\d+)/);
@@ -39,7 +51,7 @@ export function parseConfluenceUrl(url: string): ParsedConfluenceUrl {
   }
 
   throw new Error(
-    `Could not parse Confluence URL: ${url}. Expected format: https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345`,
+    `Could not parse Confluence URL: ${url}. Expected format: https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345 or .../folder/12345`,
   );
 }
 

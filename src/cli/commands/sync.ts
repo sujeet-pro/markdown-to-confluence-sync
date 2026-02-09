@@ -182,8 +182,16 @@ async function handleCreate(
   let spaceId: string;
   let parentId: string | undefined;
 
+  // If URL points to a folder, create as child of that folder
+  if (parsed.pageId && parsed.isFolder) {
+    spinner.start("Resolving parent folder...");
+    const folder = await client.getFolder(parsed.pageId);
+    spaceId = folder.spaceId;
+    parentId = folder.id;
+    spinner.succeed(`Creating in folder: "${folder.title}"`);
+  }
   // If URL points to a page, create as child of that page
-  if (parsed.pageId) {
+  else if (parsed.pageId) {
     spinner.start("Resolving parent page...");
     const parentPage = await client.getPage(parsed.pageId);
     spaceId = parentPage.spaceId;
@@ -231,8 +239,14 @@ async function handleFolderSync(
   let rootParentId: string;
   let spaceId: string;
 
-  // Get the root parent page
-  if (parsed.pageId) {
+  // Get the root parent page/folder
+  if (parsed.pageId && parsed.isFolder) {
+    spinner.start("Resolving root folder...");
+    const folder = await client.getFolder(parsed.pageId);
+    rootParentId = folder.id;
+    spaceId = folder.spaceId;
+    spinner.succeed(`Root folder: "${folder.title}"`);
+  } else if (parsed.pageId) {
     spinner.start("Resolving root page...");
     const rootPage = await client.getPage(parsed.pageId);
     rootParentId = rootPage.id;

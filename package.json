@@ -60,7 +60,7 @@
   "bugs": {
     "url": "https://github.com/sujeet-pro/markdown-to-confluence-sync/issues"
   },
-  "homepage": "https://sujeet-pro.github.io/markdown-to-confluence-sync",
+  "homepage": "https://projects.sujeet.pro/markdown-to-confluence-sync/",
   "engines": {
     "node": ">=24.0.0"
   },

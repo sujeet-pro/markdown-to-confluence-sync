@@ -48,6 +48,18 @@ describe("url-parser", () => {
       });
     });
 
+    it("parses a folder URL", () => {
+      const result = parseConfluenceUrl(
+        "https://company.atlassian.net/wiki/spaces/SFW/folder/4544430187",
+      );
+      expect(result).toEqual({
+        baseUrl: "https://company.atlassian.net",
+        spaceKey: "SFW",
+        pageId: "4544430187",
+        isFolder: true,
+      });
+    });
+
     it("handles HTTP URLs", () => {
       const result = parseConfluenceUrl("http://internal.company.com/wiki/spaces/TEAM/pages/11111");
       expect(result).toEqual({

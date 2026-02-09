@@ -43,6 +43,18 @@ export interface ConfluencePage {
 }
 
 /**
+ * Confluence folder as returned by the v2 API
+ */
+export interface ConfluenceFolder {
+  id: string;
+  type: "folder";
+  title: string;
+  spaceId: string;
+  parentId?: string;
+  parentType?: string;
+}
+
+/**
  * Confluence space as returned by the v2 API
  */
 export interface ConfluenceSpace {
@@ -64,6 +76,8 @@ export interface ParsedConfluenceUrl {
   baseUrl: string;
   spaceKey?: string;
   pageId?: string;
+  /** True when the URL points to a folder rather than a page */
+  isFolder?: boolean;
 }
 
 /**
