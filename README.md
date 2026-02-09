@@ -4,7 +4,7 @@ A CLI tool to sync Markdown files to Confluence pages.
 
 [![npm version](https://img.shields.io/npm/v/md2cf.svg)](https://www.npmjs.com/package/md2cf)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-brightgreen.svg)](https://nodejs.org/)
 
 md2cf converts Markdown to [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/) and publishes it to Confluence Cloud using the [REST API v2](https://developer.atlassian.com/cloud/confluence/rest/v2/intro/). It supports creating new pages, updating existing ones, and nesting pages under parents.
 
@@ -25,7 +25,7 @@ md2cf converts Markdown to [Atlassian Document Format (ADF)](https://developer.a
 npm install -g md2cf
 ```
 
-Requires **Node.js >= 18**.
+Requires **Node.js >= 24**.
 
 ## Quick Start
 

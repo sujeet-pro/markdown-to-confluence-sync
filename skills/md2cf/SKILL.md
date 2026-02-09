@@ -6,7 +6,7 @@ description: >
   updating existing pages, and nesting pages under parents. Keywords: confluence,
   wiki, markdown, publish, sync, atlassian, documentation.
 license: MIT
-compatibility: Requires md2cf CLI to be installed globally (npm install -g md2cf) and configured (md2cf config). Requires Node.js >= 18.
+compatibility: Requires md2cf CLI to be installed globally (npm install -g md2cf) and configured (md2cf config). Requires Node.js >= 24.
 metadata:
   author: sujeet-pro
   version: "1.0"

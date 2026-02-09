@@ -10,8 +10,8 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- npm >= 9.0.0
+- Node.js >= 24.0.0
+- npm >= 11.0.0
 - Git
 
 ### Development Setup

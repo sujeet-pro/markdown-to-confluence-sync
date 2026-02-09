@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 24
 - A **Confluence Cloud** instance (e.g. `https://company.atlassian.net`)
 - An **Atlassian API token** — generate one at [id.atlassian.com](https://id.atlassian.com/manage/api-tokens)
 

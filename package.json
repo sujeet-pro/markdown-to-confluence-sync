@@ -62,7 +62,7 @@
   },
   "homepage": "https://sujeet-pro.github.io/markdown-to-confluence-sync",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.3.2",
