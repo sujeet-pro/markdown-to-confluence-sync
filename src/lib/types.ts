@@ -89,6 +89,7 @@ export interface SyncOptions {
   title?: string;
   dryRun?: boolean;
   yes?: boolean;
+  skipMermaid?: boolean;
 }
 
 /**

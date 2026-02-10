@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { input } from "@inquirer/prompts";
 import { syncAction } from "./commands/sync.js";
 import { createConfigCommand } from "./commands/config.js";
+import { createSetupCommand } from "./commands/setup.js";
 import { installSkill, getSupportedAgents } from "./commands/install-skill.js";
 import type { SyncOptions } from "../lib/types.js";
 
@@ -21,6 +22,7 @@ program
   .option("--title <title>", "Page title (defaults to first H1 or filename)")
   .option("--dry-run", "Preview what would happen without making changes")
   .option("-y, --yes", "Skip confirmation prompts (for CI/scripts)")
+  .option("--skip-mermaid", "Skip mermaid diagram rendering (leave code blocks as-is)")
   .option(
     "--install-skill <agent>",
     `Install md2cf skill for an AI agent (${getSupportedAgents().join(", ")})`,
@@ -61,6 +63,7 @@ program
         title: opts?.title,
         dryRun: opts?.dryRun,
         yes: opts?.yes,
+        skipMermaid: (opts as Record<string, unknown>)?.skipMermaid as boolean | undefined,
       };
 
       const result = await syncAction(source, syncOpts);
@@ -79,6 +82,7 @@ program
   });
 
 program.addCommand(createConfigCommand());
+program.addCommand(createSetupCommand());
 
 // Custom help footer
 program.addHelpText(
@@ -102,6 +106,9 @@ ${chalk.bold("Examples:")}
 
   ${chalk.dim("# Sync from a remote URL")}
   $ md2cf https://raw.githubusercontent.com/org/repo/main/README.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345
+
+  ${chalk.dim("# Check mermaid rendering setup")}
+  $ md2cf setup
 
   ${chalk.dim("# Install skill for Claude Code")}
   $ md2cf --install-skill claude

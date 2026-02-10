@@ -619,7 +619,19 @@ describe("sync command", () => {
       expect(mockClient.updatePage).toHaveBeenCalledTimes(2);
     });
 
-    it("skips mermaid when mmdc is not available", async () => {
+    it("throws when mmdc is not available", async () => {
+      vi.mocked(hasMermaidBlocks).mockReturnValue(true);
+      vi.mocked(findMmdc).mockReturnValue(null);
+
+      await expect(
+        syncAction("test.md", {
+          url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        }),
+      ).rejects.toThrow("mmdc binary not found");
+      expect(processMermaidBlocks).not.toHaveBeenCalled();
+    });
+
+    it("skips mermaid with --skip-mermaid when mmdc is not available", async () => {
       vi.mocked(hasMermaidBlocks).mockReturnValue(true);
       vi.mocked(findMmdc).mockReturnValue(null);
 
@@ -637,6 +649,7 @@ describe("sync command", () => {
 
       const result = await syncAction("test.md", {
         url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        skipMermaid: true,
       });
 
       expect(result.success).toBe(true);
@@ -668,7 +681,7 @@ describe("sync command", () => {
       expect(mockClient.updatePage).toHaveBeenCalledTimes(1);
     });
 
-    it("skips second pass when all mermaid renders failed", async () => {
+    it("throws when mermaid renders fail", async () => {
       vi.mocked(hasMermaidBlocks).mockReturnValue(true);
       vi.mocked(findMmdc).mockReturnValue("mmdc");
       vi.mocked(processMermaidBlocks).mockReturnValue({
@@ -682,6 +695,18 @@ describe("sync command", () => {
           },
         ],
       });
+
+      await expect(
+        syncAction("test.md", {
+          url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        }),
+      ).rejects.toThrow("Mermaid rendering failed");
+      expect(mockClient.updatePage).not.toHaveBeenCalled();
+    });
+
+    it("skips mermaid entirely with --skip-mermaid even when blocks exist", async () => {
+      vi.mocked(hasMermaidBlocks).mockReturnValue(true);
+      vi.mocked(findMmdc).mockReturnValue("mmdc");
 
       mockClient.getPage.mockResolvedValue({
         id: "12345",
@@ -697,11 +722,13 @@ describe("sync command", () => {
 
       const result = await syncAction("test.md", {
         url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        skipMermaid: true,
       });
 
       expect(result.success).toBe(true);
+      expect(findMmdc).not.toHaveBeenCalled();
+      expect(processMermaidBlocks).not.toHaveBeenCalled();
       expect(mockClient.uploadAttachment).not.toHaveBeenCalled();
-      // Only one update (no second pass for failed renders)
       expect(mockClient.updatePage).toHaveBeenCalledTimes(1);
     });
 

@@ -53,27 +53,33 @@ async function syncAction(source: string, options: SyncOptions): Promise<SyncRes
   // Process mermaid blocks if present
   let mermaidBlocks: MermaidBlock[] = [];
   const originalMarkdown = markdown;
-  if (hasMermaidBlocks(markdown)) {
+  if (hasMermaidBlocks(markdown) && !options.skipMermaid) {
     const mmdcPath = findMmdc();
-    if (mmdcPath) {
-      spinner.start("Rendering mermaid diagrams...");
-      const mermaidResult = processMermaidBlocks(markdown, mmdcPath);
-      markdown = mermaidResult.markdown;
-      mermaidBlocks = mermaidResult.blocks;
-      const successCount = mermaidBlocks.filter((b) => b.success).length;
-      const failCount = mermaidBlocks.filter((b) => !b.success).length;
-      if (failCount > 0) {
-        spinner.warn(
-          `Rendered ${successCount}/${mermaidBlocks.length} mermaid diagrams (${failCount} failed)`,
-        );
-      } else {
-        spinner.succeed(`Rendered ${successCount} mermaid diagram(s)`);
-      }
-    } else {
-      spinner.warn(
-        "Mermaid diagrams found but mmdc binary not found. Try reinstalling md2cf to restore it.",
+    if (!mmdcPath) {
+      spinner.fail("Mermaid diagrams found but mmdc is not installed");
+      throw new Error(
+        'mmdc binary not found. Run "md2cf setup" to diagnose, or reinstall md2cf. ' +
+          "Use --skip-mermaid to sync without rendering diagrams.",
       );
     }
+    spinner.start("Rendering mermaid diagrams...");
+    const mermaidResult = processMermaidBlocks(markdown, mmdcPath);
+    markdown = mermaidResult.markdown;
+    mermaidBlocks = mermaidResult.blocks;
+    const successCount = mermaidBlocks.filter((b) => b.success).length;
+    const failCount = mermaidBlocks.filter((b) => !b.success).length;
+    if (failCount > 0) {
+      spinner.fail(`${failCount}/${mermaidBlocks.length} mermaid diagrams failed to render`);
+      const errors = mermaidBlocks
+        .filter((b) => !b.success)
+        .map((b) => `  Diagram ${b.index}: ${b.error}`)
+        .join("\n");
+      throw new Error(
+        `Mermaid rendering failed:\n${errors}\n\n` +
+          'Run "md2cf setup" to diagnose. Use --skip-mermaid to sync without rendering diagrams.',
+      );
+    }
+    spinner.succeed(`Rendered ${successCount} mermaid diagram(s)`);
   }
 
   // Convert to ADF

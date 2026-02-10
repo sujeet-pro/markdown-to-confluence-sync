@@ -20,8 +20,13 @@ vi.mock("node:os", () => ({
   },
 }));
 
+vi.mock("node:url", () => ({
+  fileURLToPath: vi.fn(() => "/pkg/dist/lib/mermaid.js"),
+}));
+
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   findMmdc,
   renderMermaidToPng,
@@ -60,24 +65,63 @@ describe("mermaid", () => {
   });
 
   describe("findMmdc", () => {
-    it("returns sibling mmdc path when it exists next to the running script", () => {
-      // First existsSync call checks sibling to process.argv[1]
-      vi.mocked(fs.existsSync).mockReturnValueOnce(true);
+    it("returns package-relative mmdc when found via import.meta.url", () => {
+      // fileURLToPath returns /pkg/dist/lib/mermaid.js
+      // Walking up: /pkg/dist/lib, /pkg/dist, /pkg — check node_modules/.bin/mmdc at each
+      vi.mocked(fs.existsSync)
+        .mockReturnValueOnce(false) // /pkg/dist/lib/node_modules/.bin/mmdc
+        .mockReturnValueOnce(false) // /pkg/dist/node_modules/.bin/mmdc
+        .mockReturnValueOnce(true); // /pkg/node_modules/.bin/mmdc ✓
+      const result = findMmdc();
+      expect(result).toBe("/pkg/node_modules/.bin/mmdc");
+    });
+
+    it("returns sibling mmdc path when package-relative not found", () => {
+      // All package-relative checks fail (5 iterations max)
+      vi.mocked(fs.existsSync)
+        .mockReturnValueOnce(false) // /pkg/dist/lib/node_modules/.bin/mmdc
+        .mockReturnValueOnce(false) // /pkg/dist/node_modules/.bin/mmdc
+        .mockReturnValueOnce(false) // /pkg/node_modules/.bin/mmdc
+        .mockReturnValueOnce(false) // /node_modules/.bin/mmdc
+        .mockReturnValueOnce(true); // sibling to argv[1] ✓
       const result = findMmdc();
       expect(result).toContain("mmdc");
     });
 
-    it("returns CWD node_modules mmdc when sibling not found", () => {
+    it("returns CWD node_modules mmdc when earlier checks fail", () => {
       vi.mocked(fs.existsSync)
+        .mockReturnValueOnce(false) // pkg /dist/lib
+        .mockReturnValueOnce(false) // pkg /dist
+        .mockReturnValueOnce(false) // pkg /
+        .mockReturnValueOnce(false) // pkg root
         .mockReturnValueOnce(false) // sibling not found
-        .mockReturnValueOnce(true); // CWD node_modules found
+        .mockReturnValueOnce(true); // CWD node_modules ✓
       const result = findMmdc();
       expect(result).toContain("node_modules/.bin/mmdc");
     });
 
+    it("returns global npm prefix mmdc when earlier checks fail", () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      // First execSync call is `npm prefix -g`
+      vi.mocked(execSync).mockReturnValueOnce("/usr/local\n");
+      // After npm prefix, existsSync is called for lib/ and direct paths
+      vi.mocked(fs.existsSync)
+        .mockReturnValue(false) // package-relative and sibling and CWD
+        .mockImplementation((p) => {
+          return p === "/usr/local/lib/node_modules/.bin/mmdc";
+        });
+      const result = findMmdc();
+      expect(result).toBe("/usr/local/lib/node_modules/.bin/mmdc");
+    });
+
     it("returns 'mmdc' when found in PATH", () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(execSync).mockReturnValue("11.0.0");
+      // First call: npm prefix -g (fails), second call: mmdc --version (succeeds)
+      vi.mocked(execSync)
+        .mockImplementationOnce(() => {
+          throw new Error("npm not found");
+        })
+        .mockReturnValueOnce("11.0.0");
       const result = findMmdc();
       expect(result).toBe("mmdc");
     });
@@ -89,6 +133,16 @@ describe("mermaid", () => {
       });
       const result = findMmdc();
       expect(result).toBeNull();
+    });
+
+    it("skips package-relative check when fileURLToPath throws", () => {
+      vi.mocked(fileURLToPath).mockImplementation(() => {
+        throw new Error("import.meta.url not available");
+      });
+      // Should fall through to sibling check
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true); // sibling ✓
+      const result = findMmdc();
+      expect(result).toContain("mmdc");
     });
   });
 
