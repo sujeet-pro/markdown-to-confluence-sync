@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import { resolve } from "node:path";
 import { builtinModules } from "node:module";
+import { chmodSync } from "node:fs";
 
 function shebangPlugin(): Plugin {
   return {
@@ -9,6 +10,14 @@ function shebangPlugin(): Plugin {
       for (const [fileName, chunk] of Object.entries(bundle)) {
         if (fileName === "cli.js" && chunk.type === "chunk") {
           chunk.code = "#!/usr/bin/env node\n" + chunk.code;
+        }
+      }
+    },
+    writeBundle(options, bundle) {
+      for (const fileName of Object.keys(bundle)) {
+        if (fileName === "cli.js") {
+          const outPath = resolve(options.dir || "dist", fileName);
+          chmodSync(outPath, 0o755);
         }
       }
     },

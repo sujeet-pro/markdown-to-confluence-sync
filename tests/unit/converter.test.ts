@@ -4,6 +4,8 @@ import {
   extractTitle,
   titleFromFilename,
   injectMermaidAdf,
+  stripTocSection,
+  injectTocMacro,
 } from "../../src/lib/converter.js";
 import type { AdfDocument, MermaidBlock } from "../../src/lib/types.js";
 import type { AttachmentMap } from "../../src/lib/converter.js";
@@ -290,6 +292,143 @@ print("hello")
       const result = injectMermaidAdf(adf, [], {});
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe("paragraph");
+    });
+  });
+
+  describe("stripTocSection", () => {
+    it("strips ## Table of Contents heading and its list", () => {
+      const md = `# Title
+
+## Table of Contents
+- [Section 1](#section-1)
+- [Section 2](#section-2)
+
+## Section 1
+Content here.`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+      expect(result.markdown).not.toContain("Table of Contents");
+      expect(result.markdown).not.toContain("Section 1](#section-1)");
+      expect(result.markdown).toContain("CONFLUENCE_TOC_MACRO_PLACEHOLDER");
+      expect(result.markdown).toContain("## Section 1");
+    });
+
+    it("strips ## TOC heading (short form)", () => {
+      const md = `# Doc\n\n## TOC\n- [A](#a)\n\n## A\nText`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+      expect(result.markdown).not.toContain("## TOC");
+    });
+
+    it("strips ## Contents heading", () => {
+      const md = `# Doc\n\n## Contents\n1. [Intro](#intro)\n\n## Intro\nHello`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+      expect(result.markdown).not.toContain("## Contents");
+    });
+
+    it("handles case-insensitive heading", () => {
+      const md = `# Doc\n\n## table of contents\n- [A](#a)\n\n## A\nText`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+    });
+
+    it("returns hasToc false when no TOC section exists", () => {
+      const md = `# Title\n\nSome paragraph.\n\n## Section\nContent.`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(false);
+      expect(result.markdown).toBe(md);
+    });
+
+    it("handles TOC with nested list items", () => {
+      const md = `# Title
+
+## Table of Contents
+- [Section 1](#section-1)
+  - [Subsection 1.1](#subsection-11)
+- [Section 2](#section-2)
+
+## Section 1
+Content.`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+      expect(result.markdown).not.toContain("Subsection 1.1");
+      expect(result.markdown).toContain("## Section 1");
+    });
+
+    it("handles TOC at different heading levels", () => {
+      const md = `# Title\n\n### Table of Contents\n- [A](#a)\n\n## A\nText`;
+      const result = stripTocSection(md);
+      expect(result.hasToc).toBe(true);
+    });
+  });
+
+  describe("injectTocMacro", () => {
+    const makeAdf = (content: AdfDocument["content"]): AdfDocument => ({
+      version: 1,
+      type: "doc",
+      content,
+    });
+
+    it("replaces placeholder paragraph with TOC extension node", () => {
+      const adf = makeAdf([
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Title" }] },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_TOC_MACRO_PLACEHOLDER" }],
+        },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Section" }] },
+      ]);
+
+      const result = injectTocMacro(adf);
+      expect(result.content).toHaveLength(3);
+      expect(result.content[1].type).toBe("extension");
+      expect(result.content[1].attrs?.extensionKey).toBe("toc");
+      expect(result.content[1].attrs?.extensionType).toBe(
+        "com.atlassian.confluence.macro.core",
+      );
+      const params = result.content[1].attrs?.parameters as Record<string, unknown>;
+      const macroParams = params.macroParams as Record<string, { value: string }>;
+      expect(macroParams.maxLevel.value).toBe("2");
+      expect(macroParams.minLevel.value).toBe("1");
+    });
+
+    it("preserves non-placeholder nodes unchanged", () => {
+      const adf = makeAdf([
+        { type: "paragraph", content: [{ type: "text", text: "Normal text" }] },
+      ]);
+
+      const result = injectTocMacro(adf);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].type).toBe("paragraph");
+    });
+  });
+
+  describe("convertMarkdownToAdf with TOC", () => {
+    it("converts TOC section to Confluence TOC macro", () => {
+      const md = `# My Page
+
+## Table of Contents
+- [Section 1](#section-1)
+- [Section 2](#section-2)
+
+## Section 1
+First section content.
+
+## Section 2
+Second section content.`;
+
+      const adf = convertMarkdownToAdf(md);
+      const tocNode = adf.content.find((n) => n.type === "extension");
+      expect(tocNode).toBeDefined();
+      expect(tocNode!.attrs?.extensionKey).toBe("toc");
+    });
+
+    it("does not inject TOC macro when no TOC heading exists", () => {
+      const md = `# Title\n\nJust a paragraph.\n\n## Section\nContent.`;
+      const adf = convertMarkdownToAdf(md);
+      const tocNode = adf.content.find((n) => n.type === "extension");
+      expect(tocNode).toBeUndefined();
     });
   });
 });

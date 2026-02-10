@@ -1,12 +1,92 @@
 import { markdownToAdf } from "marklassian";
 import type { AdfDocument, AdfNode, MermaidBlock } from "./types.js";
 
+const TOC_PLACEHOLDER = "CONFLUENCE_TOC_MACRO_PLACEHOLDER";
+
+/**
+ * Regex to match a TOC heading line (## Table of Contents, ## TOC, ## Contents, etc.).
+ */
+const TOC_HEADING_REGEX = /^#{1,6}\s+(Table\s+of\s+Contents|TOC|Contents)\s*$/im;
+
+/**
+ * Detect and strip a Table of Contents section from markdown, replacing it
+ * with a placeholder. The TOC heading and all following non-heading lines
+ * (the link list) are removed.
+ */
+export function stripTocSection(markdown: string): { markdown: string; hasToc: boolean } {
+  const lines = markdown.split("\n");
+  const tocIdx = lines.findIndex((line) => TOC_HEADING_REGEX.test(line));
+  if (tocIdx === -1) {
+    return { markdown, hasToc: false };
+  }
+
+  // Find where the TOC content ends (next heading or end of file)
+  let endIdx = lines.length;
+  for (let i = tocIdx + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+
+  const before = lines.slice(0, tocIdx);
+  const after = lines.slice(endIdx);
+  const replaced = [...before, TOC_PLACEHOLDER, "", ...after].join("\n");
+  return { markdown: replaced, hasToc: true };
+}
+
+/**
+ * ADF node for the Confluence Table of Contents macro (levels 1–2).
+ */
+function makeTocMacroNode(): AdfNode {
+  return {
+    type: "extension",
+    attrs: {
+      extensionType: "com.atlassian.confluence.macro.core",
+      extensionKey: "toc",
+      parameters: {
+        macroParams: {
+          maxLevel: { value: "2" },
+          minLevel: { value: "1" },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Replace TOC placeholder paragraphs in an ADF document with the
+ * Confluence Table of Contents macro extension node.
+ */
+export function injectTocMacro(adf: AdfDocument): AdfDocument {
+  const newContent: AdfNode[] = [];
+  for (const node of adf.content) {
+    if (containsText(node, TOC_PLACEHOLDER)) {
+      newContent.push(makeTocMacroNode());
+    } else {
+      newContent.push(node);
+    }
+  }
+  return { ...adf, content: newContent };
+}
+
+/** Check whether an ADF node (or its children) contains specific text. */
+function containsText(node: AdfNode, text: string): boolean {
+  if (node.text?.includes(text)) return true;
+  if (node.content) {
+    return node.content.some((child) => containsText(child, text));
+  }
+  return false;
+}
+
 /**
  * Convert a markdown string to an Atlassian Document Format (ADF) document.
+ * Detects Table of Contents sections and replaces them with the Confluence TOC macro.
  */
 export function convertMarkdownToAdf(markdown: string): AdfDocument {
-  const adf = markdownToAdf(markdown);
-  return adf as AdfDocument;
+  const { markdown: processed, hasToc } = stripTocSection(markdown);
+  const adf = markdownToAdf(processed) as AdfDocument;
+  return hasToc ? injectTocMacro(adf) : adf;
 }
 
 /**
