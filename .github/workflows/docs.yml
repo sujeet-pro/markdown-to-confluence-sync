@@ -2,10 +2,8 @@ name: Deploy Docs
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - ".github/workflows/docs.yml"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +25,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx vitepress build docs
+      - run: npm run docs:build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist

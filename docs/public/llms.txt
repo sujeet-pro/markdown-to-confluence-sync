@@ -1,0 +1,27 @@
+# md2cf
+
+> CLI tool and Node.js library to sync Markdown files to Confluence Cloud pages. Converts Markdown to Atlassian Document Format (ADF) and publishes via the Confluence REST API v2.
+
+md2cf is used from the terminal or by AI coding agents. Install globally with `npm install -g md2cf`, configure with `md2cf config`, then sync files with `md2cf <source> <url>`.
+
+## Docs
+
+- [Getting Started](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/getting-started): Installation and first sync
+- [Syncing Pages](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/usage): Core CLI usage — update, create, options
+- [Reading Pages](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/reading-pages): Read Confluence pages back as Markdown
+- [Merge Strategies](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/merge-strategies): local-wins, auto-merge, remote-wins, append
+- [Folder Sync](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/folder-sync): Recursive folder-to-Confluence hierarchy sync
+- [Mermaid Diagrams](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/mermaid): Render mermaid code blocks as PNG attachments
+- [Syntax Reference](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/markdown-syntax): Supported Markdown features and what to avoid
+- [Common Recipes](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/examples): Copy-paste examples for common workflows
+- [Using with AI Agents](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/agents): Skill installation and agent workflows
+- [Library API](https://sujeet-pro.github.io/markdown-to-confluence-sync/api/library): Use md2cf as a Node.js library
+- [URL Formats](https://sujeet-pro.github.io/markdown-to-confluence-sync/api/url-formats): Supported Confluence URL patterns
+- [Full LLM reference](https://sujeet-pro.github.io/markdown-to-confluence-sync/llms-full.txt): Complete self-contained reference for LLM agents
+
+## Optional
+
+- [CI / Automation](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/ci-automation): GitHub Actions and CI pipeline setup
+- [Configuration](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/configuration): Config management commands
+- [Sample Page](https://sujeet-pro.github.io/markdown-to-confluence-sync/docs/sample): Example page with all supported features
+- [Contributing](https://sujeet-pro.github.io/markdown-to-confluence-sync/contributing): Development setup and guidelines

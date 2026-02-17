@@ -6,197 +6,130 @@ A CLI tool to sync Markdown files to Confluence pages.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-brightgreen.svg)](https://nodejs.org/)
 
-md2cf converts Markdown to [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/) and publishes it to Confluence Cloud using the [REST API v2](https://developer.atlassian.com/cloud/confluence/rest/v2/intro/). It supports creating new pages, updating existing ones, and nesting pages under parents.
-
-## Features
-
-- 📄 Sync local or remote Markdown files to Confluence
-- 📁 **Recursive folder sync** - mirrors your local folder structure to Confluence
-- ✨ Create new pages or update existing ones
-- 🌳 Nest pages under parent pages
-- 🔄 Automatic Markdown to ADF conversion via [marklassian](https://github.com/jamsinclair/marklassian)
-- 🎯 Smart title detection from H1 headings or filenames
-- 🤖 AI agent skill installation (`--install-skill claude`)
-- 📚 Usable as both a CLI tool and a library
-
-## Installation
-
-```bash
-npm install -g md2cf
-```
-
-Requires **Node.js >= 24**.
+md2cf converts Markdown to [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/) and publishes it to Confluence Cloud using the [REST API v2](https://developer.atlassian.com/cloud/confluence/rest/v2/intro/).
 
 ## Quick Start
 
 ```bash
-# 1. Configure credentials
+# Install
+npm install -g md2cf
+
+# Configure credentials
 md2cf config
 
-# 2. Update an existing page
+# Update an existing page
 md2cf ./README.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345
 
-# 3. Create a new page in a space
-md2cf ./docs/guide.md https://company.atlassian.net/wiki/spaces/ENG --create
-
-# 4. Create a page as child of another page
-md2cf ./api.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create
+# Create a new page
+md2cf ./guide.md https://company.atlassian.net/wiki/spaces/ENG --create
 ```
 
-## Configuration
+## Features
 
-Run the interactive setup:
-
-```bash
-md2cf config
-```
-
-You'll be prompted for:
-
-| Setting | Description |
-|---------|-------------|
-| **email** | Your Atlassian account email |
-| **token** | API token from https://id.atlassian.com/manage/api-tokens |
-| **baseUrl** | Your Confluence instance URL (e.g., `https://company.atlassian.net`) |
-
-Configuration is stored in `~/.md2cf/config.json`.
-
-### Manual configuration
-
-```bash
-md2cf config set email user@company.com
-md2cf config set token YOUR_API_TOKEN
-md2cf config set baseUrl https://company.atlassian.net
-```
-
-### Other config commands
-
-```bash
-md2cf config list       # Show current config (token masked)
-md2cf config get email  # Get a specific value
-md2cf config reset      # Delete all configuration
-md2cf config path       # Show config file path
-```
+- Sync local or remote Markdown files to Confluence
+- Read Confluence pages back as Markdown (`md2cf read`)
+- Diff-based partial updates with merge strategies (`--strategy`)
+- Recursive folder sync mirroring local structure
+- Create new pages or update existing ones
+- Automatic Markdown to ADF conversion via [marklassian](https://github.com/jamsinclair/marklassian)
+- Panels and callouts via GFM alert syntax (`> [!NOTE]`, `> [!TIP]`, etc.)
+- Collapsible expand/collapse sections (`:::expand`)
+- Mermaid diagram rendering (when mmdc is installed)
+- Smart title detection from H1 headings or filenames
+- AI agent skill installation (`--install-skill claude`)
+- Usable as both a CLI tool and a library
 
 ## Usage
-
-The CLI intelligently determines the action based on the URL and flags:
-
-- **No `--create` flag**: Updates the page at the URL
-- **With `--create` flag**:
-  - If URL points to a page → creates a new child page
-  - If URL points to a space → creates a new page in that space
 
 ### Update an existing page
 
 ```bash
 md2cf <source> <page-url>
-```
-
-**Examples:**
-
-```bash
-# Update a page
 md2cf ./README.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345
-
-# With custom title
-md2cf ./README.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --title "Custom Title"
-
-# From remote markdown
-md2cf https://raw.githubusercontent.com/org/repo/main/README.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345
 ```
 
 ### Create a new page
 
 ```bash
-# Create in space root
+# In space root
 md2cf <source> <space-url> --create
 
-# Create as child of a page
+# As child of a page
 md2cf <source> <page-url> --create
 ```
 
-**Examples:**
+### Read a Confluence page
 
 ```bash
-# Create in space root
-md2cf ./onboarding.md https://company.atlassian.net/wiki/spaces/ENG --create
+# Print to stdout
+md2cf read <page-url>
 
-# Short flag version
-md2cf ./guide.md https://company.atlassian.net/wiki/spaces/ENG -c
-
-# Create as child of a page
-md2cf ./api-docs.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create
-
-# With custom title
-md2cf ./doc.md https://company.atlassian.net/wiki/spaces/ENG --create --title "My Page"
+# Save to file
+md2cf read <page-url> --output page.md
 ```
 
-### Sync entire folders recursively
+### Diff/merge updates
 
 ```bash
-md2cf <folder> <page-or-space-url>
+# Auto-merge: keeps non-conflicting changes from both sides
+md2cf doc.md <page-url> --strategy auto-merge -y
+
+# Append: adds local content after existing page content
+md2cf section.md <page-url> --strategy append -y
+
+# Remote wins: keeps remote, discards local
+md2cf doc.md <page-url> --strategy remote-wins -y
 ```
 
-When the source is a folder, md2cf automatically mirrors your local folder structure to Confluence:
-- Folders become pages (with default content)
-- Markdown files become pages
-- Nested folder structure is preserved as parent-child page relationships
-- Existing pages are updated, new pages are created
+| Strategy | Behavior |
+|----------|----------|
+| `local-wins` | Full replacement with local content (default) |
+| `auto-merge` | Line-level merge, prefers local for conflicts |
+| `remote-wins` | Keep remote content |
+| `append` | Concatenate local after remote |
 
-**Examples:**
+### Folder sync
 
 ```bash
-# Sync ./docs/ folder to a parent page
 md2cf ./docs/ https://company.atlassian.net/wiki/spaces/ENG/pages/12345
-
-# Sync to space root
-md2cf ./documentation/ https://company.atlassian.net/wiki/spaces/DOCS
 ```
 
-**Folder structure example:**
-```
-docs/
-  README.md              → Page "README" under parent
-  api/
-    auth.md              → Page "auth" under "api" folder page
-    users.md             → Page "users" under "api" folder page
-  guides/
-    getting-started.md   → Page "getting-started" under "guides" folder page
+Mirrors folder structure to Confluence: folders become container pages, markdown files become pages.
+
+### Initialize a sample file
+
+```bash
+md2cf init
 ```
 
-This creates:
-- Page "README" (child of target page)
-- Page "api" (folder page, child of target page)
-  - Page "auth" (child of "api")
-  - Page "users" (child of "api")
-- Page "guides" (folder page, child of target page)
-  - Page "getting-started" (child of "guides")
+Creates `confluence-sample.md` with examples of all supported markdown features.
 
 ### Options
 
 | Option | Description |
 |--------|-------------|
-| `-c, --create` | Create a new page (as child if URL is a page, in space if URL is a space) |
-| `--title <title>` | Page title (defaults to first H1 heading, then filename). Only applies to single file sync. |
-| `--dry-run` | Preview what would happen without making changes |
-| `-y, --yes` | Skip confirmation prompts (for CI/scripts) |
+| `-c, --create` | Create a new page |
+| `--title <title>` | Override page title |
+| `--strategy <s>` | Merge strategy: `auto-merge`, `local-wins`, `remote-wins`, `append` |
+| `--dry-run` | Preview without making changes |
+| `-y, --yes` | Skip confirmation prompts |
+| `--skip-mermaid` | Skip mermaid diagram rendering |
 
-### Title resolution
+## Configuration
 
-The page title is determined in order:
-
-1. `--title` flag value (if provided)
-2. First `# H1` heading in the markdown
-3. Filename converted to title case (e.g., `getting-started.md` becomes "Getting Started")
-
-## Supported Confluence URL formats
-
+```bash
+md2cf config                    # Interactive setup
+md2cf config set email user@co.com
+md2cf config set token YOUR_TOKEN
+md2cf config set baseUrl https://company.atlassian.net
+md2cf config list               # Show config (token masked)
+md2cf config reset              # Delete all config
 ```
-https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345/Page+Title
-https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345
-https://domain.atlassian.net/wiki/spaces/SPACE
-```
+
+Configuration is stored in `~/.md2cf/config.json`. You need:
+- Atlassian account email
+- API token from https://id.atlassian.com/manage/api-tokens
+- Confluence instance URL
 
 ## AI Agent Integration
 
@@ -206,22 +139,62 @@ Install the md2cf skill so AI coding agents can sync Markdown to Confluence:
 md2cf --install-skill claude
 ```
 
-This installs a [SKILL.md](https://agentskills.io/) file that teaches the agent how to use md2cf commands.
+Supported agents: `claude`, `codex`, `gemini`
 
-**Supported agents:** `claude`, `codex`, `gemini`
+### Agent workflows
+
+**Read, modify, update:**
+```bash
+md2cf read <page-url> --output page.md
+# ... modify page.md ...
+md2cf page.md <page-url> --strategy auto-merge -y
+```
+
+**Split a page into children:**
+```bash
+md2cf read <page-url> --output parent.md
+# ... split into section1.md, section2.md ...
+md2cf section1.md <page-url> --create -y
+md2cf section2.md <page-url> --create -y
+```
+
+**Append content to a page:**
+```bash
+md2cf new-section.md <page-url> --strategy append -y
+```
 
 ## Library API
 
-md2cf also exports its core modules for programmatic use:
-
 ```javascript
-import { ConfluenceClient, convertMarkdownToAdf, readMarkdownSource } from "md2cf";
+import {
+  ConfluenceClient,
+  convertMarkdownToAdf,
+  readMarkdownSource,
+  adfToMarkdown,
+  mergeMarkdown,
+} from "md2cf";
 
+// Convert and sync
 const markdown = await readMarkdownSource("./doc.md");
 const adf = convertMarkdownToAdf(markdown);
-
 const client = new ConfluenceClient(baseUrl, email, token);
 await client.createPage(spaceId, "My Page", adf);
+
+// Read a page back as markdown
+const page = await client.getPage(pageId);
+const pageAdf = JSON.parse(page.body.atlas_doc_format.value);
+const pageMarkdown = adfToMarkdown(pageAdf);
+
+// Merge content
+const merged = mergeMarkdown(localMd, remoteMd, "auto-merge");
+```
+
+## Supported URL formats
+
+```
+https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345/Page+Title
+https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345
+https://domain.atlassian.net/wiki/spaces/SPACE
 ```
 
 ## Development
@@ -241,7 +214,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full development guidelines.
 
 ## Documentation
 
-Full documentation is available at https://sujeet-pro.github.io/markdown-to-confluence-sync/
+Full documentation: https://sujeet-pro.github.io/markdown-to-confluence-sync/
+
+Markdown syntax reference: [docs/guide/markdown-syntax.md](docs/guide/markdown-syntax.md)
 
 ## License
 

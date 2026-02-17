@@ -1,4 +1,4 @@
-# Core Usage
+# Syncing Pages
 
 ## Basic syntax
 
@@ -43,12 +43,14 @@ md2cf ./api-docs.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --
 
 ## Options
 
-| Option            | Description                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `-c, --create`    | Create a new page (child if URL is a page, root if URL is a space)                               |
-| `--title <title>` | Override the page title. Only applies to single-file sync.                                       |
-| `--dry-run`       | Preview what would happen without making any API calls                                           |
-| `-y, --yes`       | Skip confirmation prompts (useful for CI / scripts)                                              |
+| Option | Description |
+| --- | --- |
+| `-c, --create` | Create a new page (child if URL is a page, root if URL is a space) |
+| `--title <title>` | Override the page title. Only applies to single-file sync. |
+| `--strategy <s>` | Merge strategy: `local-wins` (default), `auto-merge`, `remote-wins`, `append`. See [Merge Strategies](./merge-strategies.md). |
+| `--skip-mermaid` | Skip mermaid diagram rendering |
+| `--dry-run` | Preview what would happen without making any API calls |
+| `-y, --yes` | Skip confirmation prompts (useful for CI / scripts) |
 
 ## Title resolution
 
@@ -67,3 +69,11 @@ The page title is determined in order of priority:
 | Remote URL    | `https://raw.githubusercontent.com/org/repo/main/docs/guide.md`          |
 
 For folder sources, see [Folder Sync](./folder-sync.md).
+
+## Reading pages
+
+Use `md2cf read` to read a Confluence page back as Markdown. See [Reading Pages](./reading-pages.md) for the full read → modify → write workflow.
+
+## Merge strategies
+
+When updating a page, you can control how local and remote content are combined using `--strategy`. See [Merge Strategies](./merge-strategies.md) for details on all four strategies.

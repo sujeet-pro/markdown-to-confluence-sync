@@ -45,6 +45,7 @@ export default defineConfig({
         "@inquirer/prompts",
         "marklassian",
         "zod",
+        "diff",
       ],
     },
     outDir: "dist",

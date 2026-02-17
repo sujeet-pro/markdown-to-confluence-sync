@@ -13,6 +13,8 @@ import {
 import { ConfluenceClient } from "../../lib/confluence.js";
 import { parseConfluenceUrl, buildPageWebUrl } from "../../lib/url-parser.js";
 import { hasMermaidBlocks, processMermaidBlocks, findMmdc } from "../../lib/mermaid.js";
+import { adfToMarkdown } from "../../lib/adf-to-markdown.js";
+import { mergeMarkdown } from "../../lib/differ.js";
 import type { SyncOptions, SyncResult, AdfDocument, MermaidBlock } from "../../lib/types.js";
 
 /** Main sync entry point — reads markdown, converts to ADF, and creates/updates Confluence pages. */
@@ -118,7 +120,16 @@ async function syncAction(source: string, options: SyncOptions): Promise<SyncRes
   if (options.create) {
     result = await handleCreate(client, config.baseUrl, parsed, title, adf, spinner);
   } else {
-    result = await handleUpdate(client, config.baseUrl, parsed, title, adf, spinner, options);
+    result = await handleUpdate(
+      client,
+      config.baseUrl,
+      parsed,
+      title,
+      adf,
+      spinner,
+      options,
+      markdown,
+    );
   }
 
   // Two-pass mermaid: upload attachments then re-update page with media references
@@ -138,6 +149,7 @@ async function handleUpdate(
   adf: ReturnType<typeof convertMarkdownToAdf>,
   spinner: ReturnType<typeof ora>,
   options: SyncOptions,
+  localMarkdown: string,
 ): Promise<SyncResult> {
   if (!parsed.pageId) {
     throw new Error(
@@ -160,9 +172,31 @@ async function handleUpdate(
     }
   }
 
+  // Strategy-based merge when not using local-wins (default behavior)
+  let finalAdf = adf;
+  const strategy = options.strategy;
+  if (strategy && strategy !== "local-wins") {
+    spinner.start("Fetching remote content for merge...");
+    const remoteAdfValue = existing.body?.atlas_doc_format?.value;
+    if (remoteAdfValue) {
+      const remoteAdf = JSON.parse(remoteAdfValue) as AdfDocument;
+      const remoteMarkdown = adfToMarkdown(remoteAdf);
+      const result = mergeMarkdown(localMarkdown, remoteMarkdown, strategy);
+      finalAdf = convertMarkdownToAdf(result.markdown);
+      const statsMsg = `+${result.stats.added} -${result.stats.removed} ~${result.stats.unchanged}`;
+      if (result.hasConflicts) {
+        spinner.warn(`Merged with conflicts (local preferred) [${statsMsg}]`);
+      } else {
+        spinner.succeed(`Merged successfully [${statsMsg}]`);
+      }
+    } else {
+      spinner.succeed("No remote content — using local content as-is");
+    }
+  }
+
   const newVersion = (existing.version?.number || 0) + 1;
   spinner.start("Updating page...");
-  const updated = await client.updatePage(parsed.pageId, title, adf, newVersion);
+  const updated = await client.updatePage(parsed.pageId, title, finalAdf, newVersion);
   const pageUrl = updated._links?.webui
     ? buildPageWebUrl(baseUrl, updated._links.webui)
     : buildPageWebUrl(baseUrl, `/wiki/spaces/${parsed.spaceKey}/pages/${parsed.pageId}`);

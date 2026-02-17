@@ -6,8 +6,12 @@ import {
   injectMermaidAdf,
   stripTocSection,
   injectTocMacro,
+  stripPanelBlocks,
+  injectPanelAdf,
+  stripExpandBlocks,
+  injectExpandAdf,
 } from "../../src/lib/converter.js";
-import type { AdfDocument, MermaidBlock } from "../../src/lib/types.js";
+import type { AdfDocument, MermaidBlock, PanelBlock, ExpandBlock } from "../../src/lib/types.js";
 import type { AttachmentMap } from "../../src/lib/converter.js";
 
 describe("converter", () => {
@@ -429,6 +433,284 @@ Second section content.`;
       const adf = convertMarkdownToAdf(md);
       const tocNode = adf.content.find((n) => n.type === "extension");
       expect(tocNode).toBeUndefined();
+    });
+  });
+
+  describe("stripPanelBlocks", () => {
+    it("strips NOTE alert", () => {
+      const md = "> [!NOTE]\n> This is a note.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels).toHaveLength(1);
+      expect(result.panels[0].panelType).toBe("info");
+      expect(result.panels[0].contentMarkdown).toBe("This is a note.");
+      expect(result.markdown).toContain("CONFLUENCE_PANEL_PLACEHOLDER_0");
+    });
+
+    it("strips TIP alert", () => {
+      const md = "> [!TIP]\n> A helpful tip.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels[0].panelType).toBe("success");
+      expect(result.panels[0].contentMarkdown).toBe("A helpful tip.");
+    });
+
+    it("strips IMPORTANT alert", () => {
+      const md = "> [!IMPORTANT]\n> Critical info.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels[0].panelType).toBe("note");
+    });
+
+    it("strips WARNING alert", () => {
+      const md = "> [!WARNING]\n> Be careful.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels[0].panelType).toBe("warning");
+    });
+
+    it("strips CAUTION alert", () => {
+      const md = "> [!CAUTION]\n> Dangerous action.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels[0].panelType).toBe("error");
+    });
+
+    it("handles multi-line content", () => {
+      const md = "> [!NOTE]\n> Line one.\n> Line two.\n> Line three.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels[0].contentMarkdown).toBe("Line one.\nLine two.\nLine three.");
+    });
+
+    it("handles multiple panels", () => {
+      const md = "> [!NOTE]\n> Note text.\n\n> [!WARNING]\n> Warning text.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels).toHaveLength(2);
+      expect(result.panels[0].panelType).toBe("info");
+      expect(result.panels[1].panelType).toBe("warning");
+      expect(result.markdown).toContain("CONFLUENCE_PANEL_PLACEHOLDER_0");
+      expect(result.markdown).toContain("CONFLUENCE_PANEL_PLACEHOLDER_1");
+    });
+
+    it("handles empty panel content", () => {
+      const md = "> [!NOTE]";
+      const result = stripPanelBlocks(md);
+      expect(result.panels).toHaveLength(1);
+      expect(result.panels[0].contentMarkdown).toBe("");
+    });
+
+    it("does not match regular blockquotes", () => {
+      const md = "> Just a regular blockquote.";
+      const result = stripPanelBlocks(md);
+      expect(result.panels).toHaveLength(0);
+      expect(result.markdown).toBe(md);
+    });
+
+    it("skips alerts inside fenced code blocks", () => {
+      const md = "```\n> [!NOTE]\n> Not a real alert.\n```";
+      const result = stripPanelBlocks(md);
+      expect(result.panels).toHaveLength(0);
+      expect(result.markdown).toBe(md);
+    });
+  });
+
+  describe("injectPanelAdf", () => {
+    const makeAdf = (content: AdfDocument["content"]): AdfDocument => ({
+      version: 1,
+      type: "doc",
+      content,
+    });
+
+    it("replaces placeholder with panel node", () => {
+      const adf = makeAdf([
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_PANEL_PLACEHOLDER_0" }],
+        },
+      ]);
+      const panels: PanelBlock[] = [
+        { index: 0, panelType: "info", contentMarkdown: "Panel content" },
+      ];
+
+      const result = injectPanelAdf(adf, panels);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].type).toBe("panel");
+      expect(result.content[0].attrs?.panelType).toBe("info");
+    });
+
+    it("converts inner markdown to ADF content", () => {
+      const adf = makeAdf([
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_PANEL_PLACEHOLDER_0" }],
+        },
+      ]);
+      const panels: PanelBlock[] = [
+        { index: 0, panelType: "warning", contentMarkdown: "**Bold** content" },
+      ];
+
+      const result = injectPanelAdf(adf, panels);
+      expect(result.content[0].type).toBe("panel");
+      expect(result.content[0].attrs?.panelType).toBe("warning");
+      expect(result.content[0].content).toBeDefined();
+      expect(result.content[0].content!.length).toBeGreaterThan(0);
+    });
+
+    it("preserves non-placeholder nodes", () => {
+      const adf = makeAdf([
+        { type: "paragraph", content: [{ type: "text", text: "Normal text" }] },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_PANEL_PLACEHOLDER_0" }],
+        },
+      ]);
+      const panels: PanelBlock[] = [
+        { index: 0, panelType: "info", contentMarkdown: "Note" },
+      ];
+
+      const result = injectPanelAdf(adf, panels);
+      expect(result.content).toHaveLength(2);
+      expect(result.content[0].type).toBe("paragraph");
+      expect(result.content[1].type).toBe("panel");
+    });
+  });
+
+  describe("stripExpandBlocks", () => {
+    it("captures title and content", () => {
+      const md = ":::expand My Title\nSome content here.\n:::";
+      const result = stripExpandBlocks(md);
+      expect(result.expands).toHaveLength(1);
+      expect(result.expands[0].title).toBe("My Title");
+      expect(result.expands[0].contentMarkdown).toBe("Some content here.");
+      expect(result.markdown).toContain("CONFLUENCE_EXPAND_PLACEHOLDER_0");
+    });
+
+    it("handles multi-line content", () => {
+      const md = ":::expand Details\nLine 1\nLine 2\nLine 3\n:::";
+      const result = stripExpandBlocks(md);
+      expect(result.expands[0].contentMarkdown).toBe("Line 1\nLine 2\nLine 3");
+    });
+
+    it("handles empty expand block", () => {
+      const md = ":::expand Empty\n:::";
+      const result = stripExpandBlocks(md);
+      expect(result.expands).toHaveLength(1);
+      expect(result.expands[0].contentMarkdown).toBe("");
+    });
+
+    it("skips ::: inside code blocks within expand", () => {
+      const md = ":::expand Code Example\n```\n:::\n```\nAfter code.\n:::";
+      const result = stripExpandBlocks(md);
+      expect(result.expands).toHaveLength(1);
+      expect(result.expands[0].contentMarkdown).toContain(":::");
+      expect(result.expands[0].contentMarkdown).toContain("After code.");
+    });
+
+    it("skips expand directives inside fenced code blocks", () => {
+      const md = "```\n:::expand Not Real\nContent\n:::\n```";
+      const result = stripExpandBlocks(md);
+      expect(result.expands).toHaveLength(0);
+      expect(result.markdown).toBe(md);
+    });
+
+    it("handles multiple expand blocks", () => {
+      const md = ":::expand First\nContent 1\n:::\n\n:::expand Second\nContent 2\n:::";
+      const result = stripExpandBlocks(md);
+      expect(result.expands).toHaveLength(2);
+      expect(result.expands[0].title).toBe("First");
+      expect(result.expands[1].title).toBe("Second");
+    });
+  });
+
+  describe("injectExpandAdf", () => {
+    const makeAdf = (content: AdfDocument["content"]): AdfDocument => ({
+      version: 1,
+      type: "doc",
+      content,
+    });
+
+    it("replaces placeholder with expand node", () => {
+      const adf = makeAdf([
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_EXPAND_PLACEHOLDER_0" }],
+        },
+      ]);
+      const expands: ExpandBlock[] = [
+        { index: 0, title: "Details", contentMarkdown: "Hidden content" },
+      ];
+
+      const result = injectExpandAdf(adf, expands);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].type).toBe("expand");
+      expect(result.content[0].attrs?.title).toBe("Details");
+    });
+
+    it("converts inner markdown to ADF content", () => {
+      const adf = makeAdf([
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_EXPAND_PLACEHOLDER_0" }],
+        },
+      ]);
+      const expands: ExpandBlock[] = [
+        { index: 0, title: "Code", contentMarkdown: "- item 1\n- item 2" },
+      ];
+
+      const result = injectExpandAdf(adf, expands);
+      expect(result.content[0].type).toBe("expand");
+      expect(result.content[0].content).toBeDefined();
+      expect(result.content[0].content!.length).toBeGreaterThan(0);
+    });
+
+    it("preserves non-placeholder nodes", () => {
+      const adf = makeAdf([
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Title" }] },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "CONFLUENCE_EXPAND_PLACEHOLDER_0" }],
+        },
+      ]);
+      const expands: ExpandBlock[] = [
+        { index: 0, title: "More", contentMarkdown: "Content" },
+      ];
+
+      const result = injectExpandAdf(adf, expands);
+      expect(result.content).toHaveLength(2);
+      expect(result.content[0].type).toBe("heading");
+      expect(result.content[1].type).toBe("expand");
+    });
+  });
+
+  describe("convertMarkdownToAdf with panels", () => {
+    it("converts GFM alert to ADF panel end-to-end", () => {
+      const md = "> [!NOTE]\n> This is a note.";
+      const adf = convertMarkdownToAdf(md);
+      const panelNode = adf.content.find((n) => n.type === "panel");
+      expect(panelNode).toBeDefined();
+      expect(panelNode!.attrs?.panelType).toBe("info");
+    });
+
+    it("handles multiple alerts in a document", () => {
+      const md = "# Title\n\n> [!NOTE]\n> Note.\n\n> [!WARNING]\n> Warn.";
+      const adf = convertMarkdownToAdf(md);
+      const panels = adf.content.filter((n) => n.type === "panel");
+      expect(panels).toHaveLength(2);
+      expect(panels[0].attrs?.panelType).toBe("info");
+      expect(panels[1].attrs?.panelType).toBe("warning");
+    });
+  });
+
+  describe("convertMarkdownToAdf with expand", () => {
+    it("converts expand directive to ADF expand end-to-end", () => {
+      const md = ":::expand Click here\nHidden content.\n:::";
+      const adf = convertMarkdownToAdf(md);
+      const expandNode = adf.content.find((n) => n.type === "expand");
+      expect(expandNode).toBeDefined();
+      expect(expandNode!.attrs?.title).toBe("Click here");
+    });
+
+    it("handles expand with code block content", () => {
+      const md = ":::expand Code\n```js\nconsole.log('hi');\n```\n:::";
+      const adf = convertMarkdownToAdf(md);
+      const expandNode = adf.content.find((n) => n.type === "expand");
+      expect(expandNode).toBeDefined();
+      expect(expandNode!.content?.some((n) => n.type === "codeBlock")).toBe(true);
     });
   });
 });

@@ -1,7 +1,9 @@
 import { markdownToAdf } from "marklassian";
-import type { AdfDocument, AdfNode, MermaidBlock } from "./types.js";
+import type { AdfDocument, AdfNode, MermaidBlock, PanelBlock, ExpandBlock } from "./types.js";
 
 const TOC_PLACEHOLDER = "CONFLUENCE_TOC_MACRO_PLACEHOLDER";
+const PANEL_PLACEHOLDER_PREFIX = "CONFLUENCE_PANEL_PLACEHOLDER_";
+const EXPAND_PLACEHOLDER_PREFIX = "CONFLUENCE_EXPAND_PLACEHOLDER_";
 
 /**
  * Regex to match a TOC heading line (## Table of Contents, ## TOC, ## Contents, etc.).
@@ -80,13 +82,247 @@ function containsText(node: AdfNode, text: string): boolean {
 }
 
 /**
+ * GFM alert type → Confluence panel type mapping.
+ */
+const ALERT_TO_PANEL: Record<string, PanelBlock["panelType"]> = {
+  NOTE: "info",
+  TIP: "success",
+  IMPORTANT: "note",
+  WARNING: "warning",
+  CAUTION: "error",
+};
+
+/**
+ * Detect and strip GFM alert blockquotes (> [!NOTE], > [!TIP], etc.),
+ * replacing them with placeholders. Skips matches inside fenced code blocks.
+ */
+export function stripPanelBlocks(
+  markdown: string,
+): { markdown: string; panels: PanelBlock[] } {
+  const lines = markdown.split("\n");
+  const panels: PanelBlock[] = [];
+  const result: string[] = [];
+  let inCodeBlock = false;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Toggle code-block fence tracking
+    if (/^```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    // Check for GFM alert start: > [!TYPE]
+    const alertMatch = line.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/);
+    if (alertMatch) {
+      const alertType = alertMatch[1];
+      const panelType = ALERT_TO_PANEL[alertType];
+      const contentLines: string[] = [];
+      i++; // skip the alert header line
+
+      // Collect subsequent > lines (content of the blockquote)
+      while (i < lines.length && /^>/.test(lines[i])) {
+        // Strip the leading "> " or ">"
+        contentLines.push(lines[i].replace(/^>\s?/, ""));
+        i++;
+      }
+
+      const idx = panels.length;
+      panels.push({
+        index: idx,
+        panelType,
+        contentMarkdown: contentLines.join("\n").trim(),
+      });
+      result.push(`${PANEL_PLACEHOLDER_PREFIX}${idx}`);
+      continue;
+    }
+
+    result.push(line);
+    i++;
+  }
+
+  return { markdown: result.join("\n"), panels };
+}
+
+/**
+ * Replace panel placeholder paragraphs in an ADF document with Confluence panel nodes.
+ */
+export function injectPanelAdf(
+  adf: AdfDocument,
+  panels: PanelBlock[],
+): AdfDocument {
+  const newContent: AdfNode[] = [];
+
+  for (const node of adf.content) {
+    const placeholderIdx = findPlaceholderIndex(node, PANEL_PLACEHOLDER_PREFIX);
+    if (placeholderIdx !== null) {
+      const panel = panels.find((p) => p.index === placeholderIdx);
+      if (panel) {
+        const innerAdf = panel.contentMarkdown
+          ? (markdownToAdf(panel.contentMarkdown) as AdfDocument)
+          : { version: 1 as const, type: "doc" as const, content: [] };
+        newContent.push({
+          type: "panel",
+          attrs: { panelType: panel.panelType },
+          content: innerAdf.content,
+        });
+        continue;
+      }
+    }
+    newContent.push(node);
+  }
+
+  return { ...adf, content: newContent };
+}
+
+/**
+ * Detect and strip :::expand directives, replacing them with placeholders.
+ * Skips matches inside fenced code blocks.
+ */
+export function stripExpandBlocks(
+  markdown: string,
+): { markdown: string; expands: ExpandBlock[] } {
+  const lines = markdown.split("\n");
+  const expands: ExpandBlock[] = [];
+  const result: string[] = [];
+  let inCodeBlock = false;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Toggle code-block fence tracking
+    if (/^```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    // Check for :::expand Title
+    const expandMatch = line.match(/^:::expand\s+(.+)$/);
+    if (expandMatch) {
+      const title = expandMatch[1].trim();
+      const contentLines: string[] = [];
+      i++; // skip the opening line
+
+      // Collect lines until closing ::: (not inside a code block)
+      let innerCodeBlock = false;
+      while (i < lines.length) {
+        if (/^```/.test(lines[i])) {
+          innerCodeBlock = !innerCodeBlock;
+        }
+        if (!innerCodeBlock && /^:::$/.test(lines[i].trim())) {
+          i++; // skip closing :::
+          break;
+        }
+        contentLines.push(lines[i]);
+        i++;
+      }
+
+      const idx = expands.length;
+      expands.push({
+        index: idx,
+        title,
+        contentMarkdown: contentLines.join("\n").trim(),
+      });
+      result.push(`${EXPAND_PLACEHOLDER_PREFIX}${idx}`);
+      continue;
+    }
+
+    result.push(line);
+    i++;
+  }
+
+  return { markdown: result.join("\n"), expands };
+}
+
+/**
+ * Replace expand placeholder paragraphs in an ADF document with Confluence expand nodes.
+ */
+export function injectExpandAdf(
+  adf: AdfDocument,
+  expands: ExpandBlock[],
+): AdfDocument {
+  const newContent: AdfNode[] = [];
+
+  for (const node of adf.content) {
+    const placeholderIdx = findPlaceholderIndex(node, EXPAND_PLACEHOLDER_PREFIX);
+    if (placeholderIdx !== null) {
+      const expand = expands.find((e) => e.index === placeholderIdx);
+      if (expand) {
+        const innerAdf = expand.contentMarkdown
+          ? (markdownToAdf(expand.contentMarkdown) as AdfDocument)
+          : { version: 1 as const, type: "doc" as const, content: [] };
+        newContent.push({
+          type: "expand",
+          attrs: { title: expand.title },
+          content: innerAdf.content,
+        });
+        continue;
+      }
+    }
+    newContent.push(node);
+  }
+
+  return { ...adf, content: newContent };
+}
+
+/**
+ * Find a numbered placeholder index in an ADF node tree.
+ * Returns the index number if found, or null.
+ */
+function findPlaceholderIndex(node: AdfNode, prefix: string): number | null {
+  if (node.text) {
+    const regex = new RegExp(`${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\d+)`);
+    const match = node.text.match(regex);
+    if (match) return parseInt(match[1], 10);
+  }
+  if (node.content) {
+    for (const child of node.content) {
+      const result = findPlaceholderIndex(child, prefix);
+      if (result !== null) return result;
+    }
+  }
+  return null;
+}
+
+/**
  * Convert a markdown string to an Atlassian Document Format (ADF) document.
- * Detects Table of Contents sections and replaces them with the Confluence TOC macro.
+ * Detects Table of Contents sections, GFM alert panels, and expand directives,
+ * replacing them with the corresponding Confluence nodes.
  */
 export function convertMarkdownToAdf(markdown: string): AdfDocument {
-  const { markdown: processed, hasToc } = stripTocSection(markdown);
-  const adf = markdownToAdf(processed) as AdfDocument;
-  return hasToc ? injectTocMacro(adf) : adf;
+  // Pre-process: strip special sections
+  const { markdown: afterToc, hasToc } = stripTocSection(markdown);
+  const { markdown: afterPanels, panels } = stripPanelBlocks(afterToc);
+  const { markdown: afterExpands, expands } = stripExpandBlocks(afterPanels);
+
+  // Convert to ADF
+  let adf = markdownToAdf(afterExpands) as AdfDocument;
+
+  // Post-process: inject special nodes
+  if (hasToc) adf = injectTocMacro(adf);
+  if (panels.length > 0) adf = injectPanelAdf(adf, panels);
+  if (expands.length > 0) adf = injectExpandAdf(adf, expands);
+
+  return adf;
 }
 
 /**

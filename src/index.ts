@@ -40,11 +40,15 @@ export {
   extractPageId,
 } from "./lib/url-parser.js";
 
+export { adfToMarkdown } from "./lib/adf-to-markdown.js";
+export { mergeMarkdown } from "./lib/differ.js";
+
 export {
   Md2cfConfigSchema,
   PartialMd2cfConfigSchema,
   SyncOptionsSchema,
   ParsedConfluenceUrlSchema,
+  MergeStrategySchema,
 } from "./lib/schemas.js";
 
 export type {
@@ -61,4 +65,6 @@ export type {
   MermaidBlock,
   MermaidProcessResult,
   AttachmentUploadResult,
+  MergeStrategy,
+  MergeResult,
 } from "./lib/types.js";

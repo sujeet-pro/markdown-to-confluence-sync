@@ -1,4 +1,58 @@
+import { createRequire } from "node:module";
 import { defineConfig } from "vitepress";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../package.json");
+
+const sidebar = [
+  {
+    text: "Introduction",
+    items: [
+      { text: "Getting Started", link: "/docs/getting-started" },
+      { text: "Configuration", link: "/docs/configuration" },
+    ],
+  },
+  {
+    text: "Usage",
+    items: [
+      { text: "Syncing Pages", link: "/docs/usage" },
+      { text: "Reading Pages", link: "/docs/reading-pages" },
+      { text: "Merge Strategies", link: "/docs/merge-strategies" },
+      { text: "Folder Sync", link: "/docs/folder-sync" },
+      { text: "Mermaid Diagrams", link: "/docs/mermaid" },
+      { text: "CI / Automation", link: "/docs/ci-automation" },
+    ],
+  },
+  {
+    text: "Markdown",
+    items: [
+      { text: "Syntax Reference", link: "/docs/markdown-syntax" },
+      { text: "Sample Page", link: "/docs/sample" },
+    ],
+  },
+  {
+    text: "Examples",
+    items: [{ text: "Common Recipes", link: "/docs/examples" }],
+  },
+  {
+    text: "API Reference",
+    items: [
+      { text: "Library API", link: "/api/library" },
+      { text: "URL Formats", link: "/api/url-formats" },
+    ],
+  },
+  {
+    text: "AI Agents",
+    items: [
+      { text: "Using with Agents", link: "/docs/agents" },
+      { text: "Agent Reference", link: "/integrations/ai-agents" },
+    ],
+  },
+  {
+    text: "Project",
+    items: [{ text: "Contributing", link: "/contributing" }],
+  },
+];
 
 export default defineConfig({
   title: "md2cf",
@@ -15,15 +69,27 @@ export default defineConfig({
         content: "CLI tool and library to sync Markdown files to Confluence Cloud pages",
       },
     ],
+    [
+      "link",
+      {
+        rel: "llms-txt",
+        href: "/markdown-to-confluence-sync/llms.txt",
+      },
+    ],
+    [
+      "link",
+      {
+        rel: "llms-full-txt",
+        href: "/markdown-to-confluence-sync/llms-full.txt",
+      },
+    ],
   ],
 
   themeConfig: {
     nav: [
-      { text: "Guide", link: "/guide/getting-started" },
-      { text: "API", link: "/api/library" },
-      { text: "Contributing", link: "/contributing" },
+      { text: "Docs", link: "/docs/getting-started" },
       {
-        text: "v1.0.0",
+        text: `v${pkg.version}`,
         items: [
           {
             text: "Changelog",
@@ -38,39 +104,10 @@ export default defineConfig({
     ],
 
     sidebar: {
-      "/guide/": [
-        {
-          text: "Introduction",
-          items: [
-            { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "Configuration", link: "/guide/configuration" },
-          ],
-        },
-        {
-          text: "Usage",
-          items: [
-            { text: "Core Usage", link: "/guide/usage" },
-            { text: "Folder Sync", link: "/guide/folder-sync" },
-            { text: "Mermaid Diagrams", link: "/guide/mermaid" },
-            { text: "CI / Automation", link: "/guide/ci-automation" },
-          ],
-        },
-      ],
-      "/api/": [
-        {
-          text: "API Reference",
-          items: [
-            { text: "Library API", link: "/api/library" },
-            { text: "URL Formats", link: "/api/url-formats" },
-          ],
-        },
-      ],
-      "/integrations/": [
-        {
-          text: "Integrations",
-          items: [{ text: "AI Agents", link: "/integrations/ai-agents" }],
-        },
-      ],
+      "/docs/": sidebar,
+      "/api/": sidebar,
+      "/integrations/": sidebar,
+      "/contributing": sidebar,
     },
 
     socialLinks: [

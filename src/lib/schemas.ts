@@ -10,13 +10,17 @@ export const Md2cfConfigSchema = z.object({
 /** Schema for a partial config (all fields optional, used during loading/saving). */
 export const PartialMd2cfConfigSchema = Md2cfConfigSchema.partial();
 
-/** Schema for sync command options (url, create, title, dryRun, yes). */
+/** Valid merge strategy values for diff-based sync. */
+export const MergeStrategySchema = z.enum(["auto-merge", "local-wins", "remote-wins", "append"]);
+
+/** Schema for sync command options (url, create, title, dryRun, yes, strategy). */
 export const SyncOptionsSchema = z.object({
   url: z.string().url("Invalid Confluence URL").optional(),
   create: z.boolean().optional(),
   title: z.string().min(1).optional(),
   dryRun: z.boolean().optional(),
   yes: z.boolean().optional(),
+  strategy: MergeStrategySchema.optional(),
 });
 
 /** Schema for a parsed Confluence URL (baseUrl, optional spaceKey and pageId). */

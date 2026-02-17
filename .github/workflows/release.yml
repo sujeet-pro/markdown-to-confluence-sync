@@ -31,7 +31,8 @@ jobs:
 
       - run: npm ci
 
-      # Run full CI checks
+      # Run full validation
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -42,7 +43,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Bump version
+      # Bump version, commit, tag, push
       - name: Bump version
         id: bump
         run: |
@@ -50,15 +51,14 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # Commit, tag, push
-      - name: Commit and tag
+      - name: Commit, tag, and push
         run: |
           git add package.json package-lock.json
           git commit -m "chore: release v${{ steps.bump.outputs.version }}"
           git tag "v${{ steps.bump.outputs.version }}"
           git push origin main --tags
 
-      # Publish to npm (authenticated via OIDC trusted publisher — no token needed)
+      # Publish to npm (authenticated via OIDC trusted publisher)
       - name: Publish to npm
         run: npm publish --provenance --access public
 

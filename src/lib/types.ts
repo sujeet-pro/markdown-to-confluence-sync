@@ -81,6 +81,24 @@ export interface ParsedConfluenceUrl {
 }
 
 /**
+ * Merge strategy for diff-based sync
+ */
+export type MergeStrategy = "auto-merge" | "local-wins" | "remote-wins" | "append";
+
+/**
+ * Result of a merge operation
+ */
+export interface MergeResult {
+  markdown: string;
+  hasConflicts: boolean;
+  stats: {
+    added: number;
+    removed: number;
+    unchanged: number;
+  };
+}
+
+/**
  * Options for the sync command
  */
 export interface SyncOptions {
@@ -90,6 +108,7 @@ export interface SyncOptions {
   dryRun?: boolean;
   yes?: boolean;
   skipMermaid?: boolean;
+  strategy?: MergeStrategy;
 }
 
 /**
@@ -157,6 +176,24 @@ export interface ConfluencePagesResponse {
   _links?: {
     next?: string;
   };
+}
+
+/**
+ * A GFM alert block (> [!NOTE], > [!TIP], etc.) extracted from markdown
+ */
+export interface PanelBlock {
+  index: number;
+  panelType: "info" | "success" | "note" | "warning" | "error";
+  contentMarkdown: string;
+}
+
+/**
+ * An expand/collapse block (:::expand Title ... :::) extracted from markdown
+ */
+export interface ExpandBlock {
+  index: number;
+  title: string;
+  contentMarkdown: string;
 }
 
 /**

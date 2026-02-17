@@ -1,0 +1,240 @@
+# md2cf — Complete LLM Reference
+
+> CLI tool and Node.js library to sync Markdown files to Confluence Cloud pages. Converts Markdown to Atlassian Document Format (ADF) and publishes via the Confluence REST API v2.
+
+## Prerequisites
+
+```bash
+npm install -g md2cf
+md2cf config
+```
+
+Configuration requires: Atlassian email, API token (from https://id.atlassian.com/manage/api-tokens), and Confluence base URL. Config is stored at `~/.md2cf/config.json`.
+
+## Commands
+
+### Sync (default) — update or create pages
+
+```bash
+# Update an existing page
+md2cf <markdown-file-or-url> <page-url>
+
+# Create a new page in a space root
+md2cf <source> <space-url> --create
+
+# Create a new page as child of an existing page
+md2cf <source> <page-url> --create
+```
+
+### Read — get a Confluence page as Markdown
+
+```bash
+# Print to stdout
+md2cf read <page-url>
+
+# Write to a file
+md2cf read <page-url> --output page.md
+```
+
+### Init — scaffold a sample file
+
+```bash
+md2cf init
+```
+
+Creates `confluence-sample.md` with examples of all supported features.
+
+### Config — manage credentials
+
+```bash
+md2cf config              # Interactive setup
+md2cf config set <k> <v>  # Set a value (email, token, baseUrl)
+md2cf config get <key>    # Get a value
+md2cf config list         # List all config (token masked)
+md2cf config reset        # Delete all config
+md2cf config path         # Show config file location
+```
+
+## Options
+
+| Option              | Description                                                          |
+|---------------------|----------------------------------------------------------------------|
+| `-c, --create`      | Create a new page (child if URL is a page, root if URL is a space)   |
+| `--title <title>`   | Override page title (defaults to first H1 heading)                   |
+| `--strategy <s>`    | Merge strategy: `local-wins` (default), `auto-merge`, `remote-wins`, `append` |
+| `--dry-run`         | Preview what would happen without making changes                     |
+| `-y, --yes`         | Skip confirmation prompts (required for CI/agent workflows)          |
+| `--skip-mermaid`    | Skip mermaid diagram rendering                                       |
+| `-o, --output <f>`  | Write output to file (read command only)                             |
+
+## Merge Strategies
+
+| Strategy      | Behavior                                                                     |
+|---------------|------------------------------------------------------------------------------|
+| `local-wins`  | Full replacement with local content. This is the default.                    |
+| `auto-merge`  | Line-level merge. Keeps non-conflicting changes from both sides. Prefers local for conflicts. |
+| `remote-wins` | Keep remote content, discard local changes.                                  |
+| `append`      | Concatenate local content after existing remote content, separated by `---`. |
+
+## Source Types
+
+The `<source>` argument accepts:
+- Local file path: `./docs/guide.md`, `README.md`, `/absolute/path/file.md`
+- Local folder path: `./docs/` (synced recursively)
+- Remote URL: `https://raw.githubusercontent.com/org/repo/main/docs/guide.md`
+
+## URL Formats
+
+Supported Confluence URL patterns:
+- Page URL: `https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345/Page+Title`
+- Page URL (no title): `https://domain.atlassian.net/wiki/spaces/SPACE/pages/12345`
+- Space URL: `https://domain.atlassian.net/wiki/spaces/SPACE`
+
+## Title Resolution
+
+Page title is determined in order:
+1. `--title` flag value (if provided)
+2. First `# H1` heading in the Markdown content
+3. Filename converted to title case (e.g., `getting-started.md` → "Getting Started")
+
+## Folder Sync
+
+When the source is a folder, md2cf mirrors its structure to Confluence:
+- Folders become container pages
+- Markdown files become pages
+- Existing pages with matching titles are updated, new pages are created
+- Structure is synced recursively with no depth limit
+
+## Supported Markdown Features
+
+**Fully supported:**
+- Headings H1–H6 (H1 becomes the page title)
+- Bold (`**text**`), italic (`*text*`), strikethrough (`~~text~~`)
+- Inline code and fenced code blocks with language identifiers
+- Bullet lists, numbered lists, and nested lists
+- Pipe-delimited tables
+- Links (`[text](url)`) and images (`![alt](url)`)
+- Blockquotes (`> text`)
+- Horizontal rules (`---`)
+- Table of Contents (any heading named "Table of Contents", "TOC", or "Contents" → Confluence TOC macro)
+- Mermaid diagrams (rendered as PNG attachments when mmdc is available)
+- Panels via GFM alert syntax:
+  - `> [!NOTE]` → Info panel (blue)
+  - `> [!TIP]` → Success panel (green)
+  - `> [!IMPORTANT]` → Note panel (purple)
+  - `> [!WARNING]` → Warning panel (yellow)
+  - `> [!CAUTION]` → Error panel (red)
+- Expand/collapse sections via `:::expand Title ... :::` directive
+
+**Avoid (not converted to ADF):**
+- Raw HTML tags
+- Task lists / checkboxes (`- [ ]`)
+- Footnotes, definition lists, emoji shortcodes
+- Merged cells, multi-line cells, nested tables
+- Reference-style links (may not resolve correctly)
+
+## Agent Workflows
+
+**Primary workflow:** When given a Confluence URL (`*atlassian.net/wiki/*`), always start with `md2cf read` unless the user explicitly asks to create a new page.
+
+### Read, Modify, Update
+
+```bash
+# 1. Read the current page
+md2cf read https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --output page.md
+
+# 2. Modify page.md as needed
+
+# 3. Write back with auto-merge to preserve remote changes
+md2cf page.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --strategy auto-merge --yes
+```
+
+### Create a New Page
+
+```bash
+# As child of existing page
+md2cf ./doc.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create --yes
+
+# In space root
+md2cf ./doc.md https://company.atlassian.net/wiki/spaces/ENG --create --yes
+```
+
+### Append Content
+
+```bash
+md2cf new-section.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --strategy append --yes
+```
+
+### Split Page into Children
+
+```bash
+# Read the parent
+md2cf read https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --output parent.md
+
+# Split into separate files, then create children
+md2cf section1.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create --title "Section One" --yes
+md2cf section2.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create --title "Section Two" --yes
+```
+
+### Folder Sync
+
+```bash
+md2cf ./docs/ https://company.atlassian.net/wiki/spaces/ENG/pages/12345
+```
+
+### Dry Run
+
+```bash
+md2cf page.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --dry-run
+```
+
+## Library API
+
+md2cf can be used as a Node.js library:
+
+```javascript
+import {
+  ConfluenceClient,
+  convertMarkdownToAdf,
+  readMarkdownSource,
+  adfToMarkdown,
+  mergeMarkdown,
+  parseConfluenceUrl,
+} from "md2cf";
+
+// Convert and sync
+const markdown = await readMarkdownSource("./doc.md");
+const adf = convertMarkdownToAdf(markdown);
+const client = new ConfluenceClient(baseUrl, email, token);
+await client.createPage(spaceId, "My Page", adf);
+
+// Read a page back as Markdown
+const page = await client.getPage(pageId);
+const pageAdf = JSON.parse(page.body.atlas_doc_format.value);
+const md = adfToMarkdown(pageAdf);
+
+// Merge content
+const result = mergeMarkdown(localMd, remoteMd, "auto-merge");
+// result.markdown, result.hasConflicts, result.stats
+```
+
+### Key exports
+
+- `ConfluenceClient` — REST API v2 client (getPage, createPage, updatePage, getSpace, findPageByTitle, uploadAttachment, checkAccess)
+- `convertMarkdownToAdf(markdown)` — Markdown string → ADF document
+- `adfToMarkdown(adf)` — ADF document → Markdown string
+- `readMarkdownSource(source)` — Read from local file, folder, or remote URL
+- `mergeMarkdown(local, remote, strategy)` — Merge two Markdown strings with a strategy
+- `parseConfluenceUrl(url)` — Parse a Confluence URL into { baseUrl, spaceKey, pageId }
+- `extractTitle(markdown)` — Extract the first H1 heading
+- `titleFromFilename(filename)` — Convert filename to title case
+
+## Edge Cases
+
+- For updates (no `--create`), the URL must point to an existing page. Space URLs are rejected.
+- For creates (`--create`), the URL can be a page (child) or space (root).
+- The `read` command requires a page URL. Space URLs are not supported.
+- `--strategy` only applies to updates, not creates.
+- `--yes` skips the overwrite confirmation prompt. Always use it in automated workflows.
+- Mermaid rendering requires mmdc. Use `--skip-mermaid` if mmdc is not available.
+- Remote Markdown URLs must be publicly accessible.

@@ -2,6 +2,8 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { input } from "@inquirer/prompts";
 import { syncAction } from "./commands/sync.js";
+import { readAction } from "./commands/read.js";
+import { initAction } from "./commands/init.js";
 import { createConfigCommand } from "./commands/config.js";
 import { createSetupCommand } from "./commands/setup.js";
 import { installSkill, getSupportedAgents } from "./commands/install-skill.js";
@@ -23,6 +25,10 @@ program
   .option("--dry-run", "Preview what would happen without making changes")
   .option("-y, --yes", "Skip confirmation prompts (for CI/scripts)")
   .option("--skip-mermaid", "Skip mermaid diagram rendering (leave code blocks as-is)")
+  .option(
+    "--strategy <strategy>",
+    "Merge strategy for updates: auto-merge, local-wins, remote-wins, append",
+  )
   .option(
     "--install-skill <agent>",
     `Install md2cf skill for an AI agent (${getSupportedAgents().join(", ")})`,
@@ -64,6 +70,7 @@ program
         dryRun: opts?.dryRun,
         yes: opts?.yes,
         skipMermaid: (opts as Record<string, unknown>)?.skipMermaid as boolean | undefined,
+        strategy: (opts as Record<string, unknown>)?.strategy as SyncOptions["strategy"],
       };
 
       const result = await syncAction(source, syncOpts);
@@ -81,6 +88,29 @@ program
     }
   });
 
+// Read command
+const readCommand = new Command("read")
+  .description("Read a Confluence page as Markdown")
+  .argument("<url>", "Confluence page URL")
+  .option("-o, --output <file>", "Write output to file instead of stdout")
+  .action(async (url: string, opts: { output?: string }) => {
+    try {
+      await readAction(url, opts);
+    } catch (err) {
+      console.error(chalk.red.bold("Error:"), (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// Init command
+const initCommand = new Command("init")
+  .description("Create a sample Confluence-ready markdown file")
+  .action(() => {
+    initAction();
+  });
+
+program.addCommand(readCommand);
+program.addCommand(initCommand);
 program.addCommand(createConfigCommand());
 program.addCommand(createSetupCommand());
 

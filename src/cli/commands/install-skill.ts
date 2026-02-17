@@ -55,14 +55,18 @@ function getEmbeddedSkillContent(): string {
 name: md2cf
 description: >
   Sync markdown files to Confluence pages. Use this skill when asked to publish,
-  sync, or upload markdown content to Confluence. Handles creating new pages,
-  updating existing pages, and nesting pages under parents. Keywords: confluence,
-  wiki, markdown, publish, sync, atlassian, documentation.
+  sync, upload, read, or update markdown content on Confluence, or when the user
+  provides a *atlassian.net/wiki/* URL. Handles creating new pages, updating
+  existing pages, reading pages as markdown, diff-based partial updates, panels
+  (GFM alerts), expand/collapse sections, and nesting pages under parents. The
+  primary workflow when given a Confluence URL is: read the page, modify locally,
+  write back. Keywords: confluence, wiki, markdown, publish, sync, read, diff,
+  merge, atlassian, documentation, init, panels, expand, callouts.
 license: MIT
-compatibility: Requires md2cf CLI to be installed globally (npm install -g md2cf) and configured (md2cf config). Requires Node.js >= 18.
+compatibility: Requires md2cf CLI to be installed globally (npm install -g md2cf) and configured (md2cf config). Requires Node.js >= 24.
 metadata:
   author: sujeet-pro
-  version: "1.0"
+  version: "3.0"
 ---
 
 ## Instructions
@@ -82,32 +86,30 @@ Configuration requires: Atlassian email, API token (from https://id.atlassian.co
 
 ### Commands
 
-The CLI intelligently determines the action based on the URL and flags:
-- **No \`--create\` flag**: Updates the page at the URL
-- **With \`--create\` flag**:
-  - If URL points to a page → creates a new child page
-  - If URL points to a space → creates a new page in that space
-
 #### Update an existing Confluence page (default)
 
 \`\`\`bash
 md2cf <markdown-file-or-url> <page-url>
 \`\`\`
 
-The URL must be a full Confluence page URL. This is the default mode.
-
-#### Create a new page in a space
+#### Create a new page
 
 \`\`\`bash
 md2cf <source> <space-url> --create
-# or use the short flag
-md2cf <source> <space-url> -c
+md2cf <source> <page-url> --create    # creates as child page
 \`\`\`
 
-#### Create a page as child of another page
+#### Read a page as Markdown
 
 \`\`\`bash
-md2cf <source> <page-url> --create
+md2cf read <page-url>                  # prints to stdout
+md2cf read <page-url> --output out.md  # writes to file
+\`\`\`
+
+#### Scaffold a sample markdown file
+
+\`\`\`bash
+md2cf init
 \`\`\`
 
 ### Options
@@ -116,8 +118,19 @@ md2cf <source> <page-url> --create
 |--------|-------------|
 | \`-c, --create\` | Create a new page (as child if URL is a page, in space if URL is a space) |
 | \`--title <title>\` | Override page title (defaults to first H1 heading in the markdown) |
+| \`--strategy <s>\` | Merge strategy: \`auto-merge\`, \`local-wins\` (default), \`remote-wins\`, \`append\` |
 | \`--dry-run\` | Preview what would happen without making changes |
 | \`-y, --yes\` | Skip confirmation prompts (for CI/scripts) |
+| \`--skip-mermaid\` | Skip mermaid diagram rendering |
+
+### Merge Strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| \`local-wins\` | Full replacement with local content (default, current behavior) |
+| \`auto-merge\` | Line-level merge: keeps non-conflicting changes from both sides, prefers local for conflicts |
+| \`remote-wins\` | Keep remote content, discard local changes |
+| \`append\` | Concatenate local content after existing remote content |
 
 ### Configuration Commands
 
@@ -133,48 +146,104 @@ md2cf config path         # Show config file location
 ### Source Types
 
 The \`<source>\` argument accepts:
-- **Local file path**: \`./docs/guide.md\`, \`README.md\`, \`/absolute/path/file.md\`
-- **Local folder path**: \`./docs/\` (automatically synced recursively)
+- **Local file path**: \`./docs/guide.md\`, \`README.md\`
+- **Local folder path**: \`./docs/\` (synced recursively)
 - **Remote URL**: \`https://raw.githubusercontent.com/org/repo/main/docs/guide.md\`
 
 ### Folder Sync
 
-When the source is a folder, md2cf automatically syncs it recursively:
-- Mirrors the local folder structure to Confluence
-- Folders become pages (with default content)
+When the source is a folder, md2cf mirrors the local structure to Confluence:
+- Folders become container pages
 - Markdown files become pages
 - Existing pages are updated, new pages are created
 
 ### Title Resolution
 
-The page title is determined in this order:
 1. \`--title\` flag value (if provided)
 2. First \`# H1\` heading in the markdown content
-3. Filename converted to title case (e.g., \`getting-started.md\` becomes "Getting Started")
+3. Filename converted to title case
+
+## Agent Workflows
+
+**Primary workflow:** When the user provides a Confluence URL (\`*atlassian.net/wiki/*\`), the default approach is to read the page, modify it locally, then write it back. Always start with \`md2cf read\` unless the user explicitly asks to create a new page.
+
+### Read, Modify, Update
+
+Read an existing Confluence page, modify its content, then sync back:
+
+\`\`\`bash
+# 1. Read the current page content
+md2cf read https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --output page.md
+
+# 2. Modify page.md as needed (edit, append, etc.)
+
+# 3. Sync back with auto-merge to preserve any concurrent changes
+md2cf page.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --strategy auto-merge -y
+\`\`\`
+
+### Split Page into Children
+
+Read a large page, break it into sections, and create child pages:
+
+\`\`\`bash
+# 1. Read the parent page
+md2cf read https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --output parent.md
+
+# 2. Split content into separate files (e.g., section1.md, section2.md)
+
+# 3. Create child pages
+md2cf section1.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create -y
+md2cf section2.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --create -y
+\`\`\`
+
+### Generate from Template
+
+\`\`\`bash
+# 1. Generate a sample markdown file
+md2cf init
+
+# 2. Edit confluence-sample.md to match your content
+
+# 3. Sync to Confluence
+md2cf confluence-sample.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 -y
+\`\`\`
+
+### Append Content to a Page
+
+\`\`\`bash
+# Add new content to the end of an existing page
+md2cf new-section.md https://company.atlassian.net/wiki/spaces/ENG/pages/12345 --strategy append -y
+\`\`\`
+
+## Writing Confluence-Friendly Markdown
+
+Supported features: headings (H1-H6), bold, italic, strikethrough, inline code, code blocks with language, bullet lists, numbered lists, nested lists, tables, links, images, blockquotes, horizontal rules, Table of Contents sections (auto-converted to Confluence TOC macro), mermaid diagrams (requires mmdc), panels/callouts via GFM alert syntax (\`> [!NOTE]\`, \`> [!TIP]\`, \`> [!IMPORTANT]\`, \`> [!WARNING]\`, \`> [!CAUTION]\`), expand/collapse sections via \`:::expand Title ... :::\` syntax.
+
+Avoid: raw HTML, footnotes, task lists (GFM checkboxes), definition lists, math blocks. These are not converted to ADF.
 
 ## Examples
 
-**Update a page from a local file:**
+**Update a page:**
 \`\`\`bash
 md2cf ./README.md https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456
 \`\`\`
 
-**Create a page in a space root:**
+**Read a page:**
 \`\`\`bash
-md2cf ./onboarding.md https://mycompany.atlassian.net/wiki/spaces/ENG --create
+md2cf read https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456
 \`\`\`
 
-**Create a child page under an existing page:**
+**Create a child page:**
 \`\`\`bash
 md2cf ./api-docs.md https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456 --create
 \`\`\`
 
-**Sync from a remote URL:**
+**Auto-merge update:**
 \`\`\`bash
-md2cf https://raw.githubusercontent.com/org/repo/main/README.md https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456
+md2cf ./doc.md https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456 --strategy auto-merge -y
 \`\`\`
 
-**Sync entire folder recursively:**
+**Sync entire folder:**
 \`\`\`bash
 md2cf ./docs/ https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123456
 \`\`\`

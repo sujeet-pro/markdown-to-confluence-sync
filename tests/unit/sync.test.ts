@@ -47,6 +47,18 @@ vi.mock("../../src/lib/mermaid.js", () => ({
   findMmdc: vi.fn(),
 }));
 
+vi.mock("../../src/lib/adf-to-markdown.js", () => ({
+  adfToMarkdown: vi.fn(() => "# Remote\nRemote content"),
+}));
+
+vi.mock("../../src/lib/differ.js", () => ({
+  mergeMarkdown: vi.fn(() => ({
+    markdown: "merged",
+    hasConflicts: false,
+    stats: { added: 1, removed: 0, unchanged: 5 },
+  })),
+}));
+
 vi.mock("@inquirer/prompts", () => ({
   confirm: vi.fn(),
 }));
@@ -67,6 +79,9 @@ import { extractTitle } from "../../src/lib/converter.js";
 import { ConfluenceClient } from "../../src/lib/confluence.js";
 import { confirm } from "@inquirer/prompts";
 import { hasMermaidBlocks, processMermaidBlocks, findMmdc } from "../../src/lib/mermaid.js";
+import { adfToMarkdown } from "../../src/lib/adf-to-markdown.js";
+import { mergeMarkdown } from "../../src/lib/differ.js";
+import { convertMarkdownToAdf } from "../../src/lib/converter.js";
 
 describe("sync command", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -756,6 +771,98 @@ describe("sync command", () => {
       expect(result.success).toBe(true);
       expect(mockClient.updatePage).not.toHaveBeenCalled();
       expect(mockClient.uploadAttachment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("strategy-based merge", () => {
+    it("uses local-wins strategy (skips merge, behaves like default)", async () => {
+      mockClient.getPage.mockResolvedValue({
+        id: "12345",
+        title: "Page",
+        spaceId: "sp1",
+        version: { number: 1 },
+        body: {
+          atlas_doc_format: {
+            value: JSON.stringify({ version: 1, type: "doc", content: [] }),
+            representation: "atlas_doc_format",
+          },
+        },
+      });
+      mockClient.updatePage.mockResolvedValue({
+        id: "12345",
+        title: "Test Title",
+        spaceId: "sp1",
+      });
+
+      const result = await syncAction("test.md", {
+        url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        strategy: "local-wins",
+      });
+
+      expect(result.success).toBe(true);
+      // local-wins does not invoke merge logic; it behaves like the default path
+      expect(mergeMarkdown).not.toHaveBeenCalled();
+      expect(adfToMarkdown).not.toHaveBeenCalled();
+    });
+
+    it("uses auto-merge strategy (calls mergeMarkdown)", async () => {
+      mockClient.getPage.mockResolvedValue({
+        id: "12345",
+        title: "Page",
+        spaceId: "sp1",
+        version: { number: 1 },
+        body: {
+          atlas_doc_format: {
+            value: JSON.stringify({ version: 1, type: "doc", content: [] }),
+            representation: "atlas_doc_format",
+          },
+        },
+      });
+      mockClient.updatePage.mockResolvedValue({
+        id: "12345",
+        title: "Test Title",
+        spaceId: "sp1",
+      });
+
+      const result = await syncAction("test.md", {
+        url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        strategy: "auto-merge",
+      });
+
+      expect(result.success).toBe(true);
+      expect(adfToMarkdown).toHaveBeenCalled();
+      expect(mergeMarkdown).toHaveBeenCalledWith(
+        "# Test\nContent here",
+        "# Remote\nRemote content",
+        "auto-merge",
+      );
+      // The merged result should be re-converted to ADF
+      expect(convertMarkdownToAdf).toHaveBeenCalledWith("merged");
+    });
+
+    it("handles missing remote ADF content when strategy is set", async () => {
+      mockClient.getPage.mockResolvedValue({
+        id: "12345",
+        title: "Page",
+        spaceId: "sp1",
+        version: { number: 1 },
+        body: {},
+      });
+      mockClient.updatePage.mockResolvedValue({
+        id: "12345",
+        title: "Test Title",
+        spaceId: "sp1",
+      });
+
+      const result = await syncAction("test.md", {
+        url: "https://test.atlassian.net/wiki/spaces/ENG/pages/12345",
+        strategy: "auto-merge",
+      });
+
+      expect(result.success).toBe(true);
+      // When remote has no ADF content, merge is skipped and local content is used as-is
+      expect(mergeMarkdown).not.toHaveBeenCalled();
+      expect(adfToMarkdown).not.toHaveBeenCalled();
     });
   });
 });
